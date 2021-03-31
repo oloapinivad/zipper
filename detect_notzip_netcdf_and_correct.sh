@@ -12,16 +12,16 @@
 # select where you want to run the script
 #COREDIR=/scratch/users/paolo
 #userlist=netcdf4_test
-#COREDIR=/work/users
-COREDIR=/work/datasets
-#userlist=$(ls $COREDIR)
+COREDIR=/work/users
+#COREDIR=/work/datasets
+userlist=$(ls $COREDIR)
 #COREDIR=/scratch/users
-userlist=models
+userlist=arnone
 
 # where to report the analysis
 #REPORTDIR=/scratch/users/paolo/netcdf4_report
-REPORTDIR=/scratch/users/paolo/netcdf4_official_conversion
-mkdir $REPORTDIR
+REPORTDIR=/scratch/users/paolo/netcdf-zipper/enrico2
+mkdir -p $REPORTDIR
 
 # you need to scan all the data a first time
 # this creates the files list needed for the correction
@@ -32,7 +32,7 @@ do_scan=true
 do_correct=true
 
 # verbose flag
-verbose=false
+verbose=true
 
 # loop on the user/folders
 for user in $userlist ; do
@@ -40,7 +40,12 @@ for user in $userlist ; do
 
 
 	# set dir and logfiles
-	DIR=$COREDIR/$user
+	#DIR=$COREDIR/$user
+
+	#=========----------------------------------------------#
+	DIR=$COREDIR/$user/ESMValTool2/esmvaltool_output/TEST/recipe_extreme_events_20201022_124204/preproc/extreme_events/
+	#DIR=$COREDIR/$user
+	# ------------------------------------------------------#
 	notzipfiles=$REPORTDIR/not_compressed_files_${user}.txt
 	zipfiles=$REPORTDIR/compressed_files_${user}.txt
 	failedfiles=$REPORTDIR/failed_files_${user}.txt
@@ -53,7 +58,7 @@ for user in $userlist ; do
         # if the do_correct section below has been interrupted
         # this block is trying to restoring files in the middle of the operation
 	echo "Safecheck, looking for *notcompressed* files in $DIR..."
-        list=$(find  $DIR -type f -name "*.nc*notcompressed")
+	list=$(find  $DIR -type f \( -name "*.nc*notcompressed" -o -name "*.nc4*notcompressed" \) )
         for file in $list ; do
 		restorefile="${file%.*}"
 		echo "Restoring $restorefile ..."
@@ -63,7 +68,7 @@ for user in $userlist ; do
 	# start: look for all NetCDF files in the folder
 	echo "Looking for NetCDF files in $DIR... "
         echo "Finding files... it may take a while..."
-	list=$(find $DIR -type f -name "*.nc")
+	list=$(find $DIR -type f  \( -name "*.nc" -o -name "*.nc4" \) )
 	echo "NetCDF file listing complete!"
 	totfile=$(echo $list | wc -w) 
 	echo "$totfile found!"
@@ -187,11 +192,19 @@ for user in $userlist ; do
 			# remove compressed file for security
 			rm -f  $file.compressed
 
+			# check if a time dimension exist: if it is the case, set chunking for time to 1
+			timecheck=$(ncdump -h $file.notcompressed | grep "time")
+			if [[ ! -z $timecheck ]] ; then
+				chunkflag="-c time/1"
+			else 
+				chunkflag=""
+			fi
+
 			# compress with netcdf4 classic and shuffling, deflate level 1
 			# safer and more efficient option to reduce file dimension and preserve
 			# file structure
-			[[ $verbose == true ]] && echo "nccopy -s -k nc7 -d1 $file.notcompressed $file.compressed"
-			nccopy -s -k nc7 -d1 $file.notcompressed $file.compressed
+			[[ $verbose == true ]] && echo "nccopy -s -k nc7 -d1 $chunkflag $file.notcompressed $file.compressed"
+			nccopy -s -k nc7 -d1 $chunkflag $file.notcompressed $file.compressed
 
 			# if the new file is created, check new file integrity and set ownership/permissions
 			if [ $? -eq 0 ]; then
