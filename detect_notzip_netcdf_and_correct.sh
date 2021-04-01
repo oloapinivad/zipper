@@ -43,7 +43,7 @@ for user in $userlist ; do
 	#DIR=$COREDIR/$user
 
 	#=========----------------------------------------------#
-	DIR=$COREDIR/$user/ESMValTool2/esmvaltool_output/TEST/recipe_extreme_events_20201022_124204/preproc/extreme_events/
+	DIR=$COREDIR/$user/ESMValTool2/esmvaltool_output/TEST/recipe_extreme_events_20201026_090311/
 	#DIR=$COREDIR/$user
 	# ------------------------------------------------------#
 	notzipfiles=$REPORTDIR/not_compressed_files_${user}.txt
@@ -193,18 +193,23 @@ for user in $userlist ; do
 			rm -f  $file.compressed
 
 			# check if a time dimension exist: if it is the case, set chunking for time to 1
+			# default chunk flag is to not operate
+			chunkflag=""
 			timecheck=$(ncdump -h $file.notcompressed | grep "time")
 			if [[ ! -z $timecheck ]] ; then
-				chunkflag="-c time/1"
-			else 
-				chunkflag=""
+				chunkcheck=$(ncdump -h $file.notcompressed | grep "time:_ChunkSizes")
+				if [[ -z $chunkcheck ]] ; then
+					chunkflag="-c time/1"
+				fi
 			fi
+			echo $chunkflag
 
 			# compress with netcdf4 classic and shuffling, deflate level 1
 			# safer and more efficient option to reduce file dimension and preserve
 			# file structure
-			[[ $verbose == true ]] && echo "nccopy -s -k nc7 -d1 $chunkflag $file.notcompressed $file.compressed"
-			nccopy -s -k nc7 -d1 $chunkflag $file.notcompressed $file.compressed
+			# add chunking if necessary, write to cache to speed up
+			[[ $verbose == true ]] && echo "nccopy -s -k nc7 -d1 -w $chunkflag $file.notcompressed $file.compressed"
+			nccopy -s -k nc7 -d1 -w $chunkflag $file.notcompressed $file.compressed
 
 			# if the new file is created, check new file integrity and set ownership/permissions
 			if [ $? -eq 0 ]; then
